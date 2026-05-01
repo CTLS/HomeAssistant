@@ -239,8 +239,8 @@ User can set animation speed via Tampermonkey menu:
 - Range: 50ms (fast) to 2000ms (slow)
 - Stored persistently with `GM_setValue`
 
-**Instant Frame Replacement with `stack: false`:**
-Instead of clearing between frames, use AWTRIX's `stack` parameter:
+**Instant Display with `stack: false`:**
+All payloads (static and animated) use `stack: false` for instant display:
 ```javascript
 const payload = {
   draw: [...],
@@ -249,10 +249,11 @@ const payload = {
 };
 ```
 
-**Why `stack: false` is better:**
-- ✅ Instant replacement (no clear delay)
-- ✅ Smoother animation
-- ✅ One less HTTP request per frame
+**Why `stack: false` for everything:**
+- ✅ Instant display (no delay)
+- ✅ Replaces any existing notification immediately
+- ✅ No need to clear before sending
+- ✅ Consistent behavior for static and animated icons
 - ✅ Built-in AWTRIX feature
 
 ---
@@ -671,10 +672,12 @@ Buttons appear **below each icon**, between the image and the subtitle:
 - [ ] Icon fetch works via `GM_xmlhttpRequest` (CORS bypass)
 - [ ] 8x8 PNG → RGB888 → hex color conversion produces correct colors
 - [ ] Payload contains 64 `dp` commands (one per pixel)
+- [ ] Payload includes `stack: false` for instant display
 - [ ] HTTP POST to `/api/notify` succeeds with valid IP
-- [ ] AWTRIX displays icon left-aligned (x=0) within 2 seconds
+- [ ] AWTRIX displays icon left-aligned (x=0) instantly (no delay)
+- [ ] Icon replaces any existing notification immediately
 - [ ] Export Icon button copies valid JSON payload to clipboard
-- [ ] Copied payload uses `dp` commands (not `db` bitmap)
+- [ ] Copied payload uses `dp` commands and `stack: false`
 - [ ] Copied payload can be used with curl/Postman to send to AWTRIX
 
 ### Animated Icons (GIF) - Hover-Loop Mode
@@ -691,11 +694,13 @@ Buttons appear **below each icon**, between the image and the subtitle:
 - [ ] Smooth animation with no flicker between frames
 
 ### General
-- [ ] Existing notifications cleared before sending new icon (no overlap)
-- [ ] Console shows "🧹 Cleared existing notification" before sending
+- [ ] All payloads use `stack: false` (static and animated)
+- [ ] Icons display instantly without delay
+- [ ] No notification stacking or overlap
 - [ ] Error messages are helpful (network errors, invalid IP, etc.)
 - [ ] IP configuration persists across page reloads
 - [ ] Test connection button validates AWTRIX reachability
+- [ ] Animation speed configuration persists across page reloads
 
 ---
 

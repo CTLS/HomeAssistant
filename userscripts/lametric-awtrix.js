@@ -574,10 +574,7 @@
                 const rgbArray = await processIcon(blob);
                 
                 console.log('Creating payload...');
-                const payload = createAwtrixPayload(rgbArray);
-                
-                // Clear existing notification
-                await clearAwtrixNotification();
+                const payload = createAwtrixPayload(rgbArray, false); // stack: false for instant display
                 
                 console.log('Sending to AWTRIX...');
                 await sendToAwtrix(payload);
@@ -621,7 +618,7 @@
             const rgbArray = await processIcon(blob);
             
             console.log('Creating payload...');
-            const payload = createAwtrixPayload(rgbArray);
+            const payload = createAwtrixPayload(rgbArray, false); // stack: false for instant display
             
             console.log('Copying to clipboard...');
             exportToClipboard(payload);
