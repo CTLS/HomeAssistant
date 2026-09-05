@@ -82,7 +82,7 @@ blueprint:
           filter:
             integration: mqtt
             manufacturer: Blueforcer
-            model: AWTRIX 3
+            model: AWTRIX NG
           multiple: true
 
     forecast_var:
