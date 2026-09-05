@@ -73,7 +73,7 @@ blueprint:
   input:
     awtrix:
       name: AWTRIX Device
-      description: Select the Awtrix 3
+      description: Select the Awtrix NG
       selector:
         device:
           integration: mqtt
