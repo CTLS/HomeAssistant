@@ -582,7 +582,6 @@ variables:
     {{ ns.devices | reject('match','unavailable') | list}}
 
   forecast_var: !input forecast_var
-  forecast: "{{state_attr(forecast_var,'forecast')}}"
   weather: "{{states(forecast_var)}}"
   hours_to_show: !input hours_to_show
   #---------------------------------
@@ -876,88 +875,6 @@ variables:
     {% endmacro %}
     {{iif(weather == 'clear-night' and use_moon_clear_night, draw_moon(moon_phase,0,0), draw_moon(moon_phase,23,0))}}
 
-  payload: >
-    {%- macro interpolate(dictionary, x) -%}
-      {%- set sorted_keys = dictionary|dictsort -%}
-      {%- set above = sorted_keys|selectattr('0', 'gt', x)|map(attribute='0')|list|first -%}
-      {%- set below = sorted_keys|selectattr('0', 'lt', x)|map(attribute='0')|list|last -%}
-
-      {#- Key matches x exactly -#}
-      {%- if above is defined and dictionary[above] == x -%}
-        {%- set value = dictionary[above] -%}
-        {{ value }}
-      {%- elif below is defined and dictionary[below] == x -%}
-        {%- set value = dictionary[below] -%}
-        {{ value }}
-      {#- Interpolation between two values -#}
-      {%- elif below is defined and above is defined -%}
-        {%- set lower_value = dictionary[below] -%}
-        {%- set upper_value = dictionary[above] -%}
-        {%- set lower_rgb = lower_value[1:] -%}
-        {%- set upper_rgb = upper_value[1:] -%}
-
-        {%- set lower_r = lower_rgb[0:2]|int(base=16) -%}
-        {%- set lower_g = lower_rgb[2:4]|int(base=16) -%}
-        {%- set lower_b = lower_rgb[4:6]|int(base=16) -%}
-
-        {%- set upper_r = upper_rgb[0:2]|int(base=16) -%}
-        {%- set upper_g = upper_rgb[2:4]|int(base=16) -%}
-        {%- set upper_b = upper_rgb[4:6]|int(base=16) -%}
-
-        {%- set interpolation_factor = (x - below) / (above - below) -%}
-        {%- set interpolated_r = ((1 - interpolation_factor) * lower_r + interpolation_factor * upper_r)|int -%}
-        {%- set interpolated_g = ((1 - interpolation_factor) * lower_g + interpolation_factor * upper_g)|int -%}
-        {%- set interpolated_b = ((1 - interpolation_factor) * lower_b + interpolation_factor * upper_b)|int -%}
-
-        {%- set interpolated_hex = '#' ~ '%02X' % interpolated_r ~ '%02X' % interpolated_g ~ '%02X' % interpolated_b -%}
-        {{ interpolated_hex }}
-      {#- Only below key available -#}
-      {%- elif below is defined -%}
-        {%- set value = dictionary[below] -%}
-        {{ value }}
-      {#- Only above key available -#}
-      {%- elif above is defined -%}
-        {%- set value = dictionary[above] -%}
-        {{ value }}
-      {#- No matching keys available -#}
-      {%- else -%}
-        No matching key found.
-      {%- endif -%}
-    {%- endmacro -%}
-
-    {#- Define macro to get length of the forecast}
-    {%- macro str_len(str) %}
-    {%- if '.' in str %}
-    {%- set char_count = (str | length) -1 %}{{char_count * 3 + 1 + char_count}}
-    {%- else %}
-    {%- set char_count = (str | length) %}{{char_count * 3 + (char_count - 1)}}
-    {%- endif %}
-    {%- endmacro %}
-
-    {#- Define a macro to draw out the forecast lines#}
-    {%- macro draw_forecast_lines(x,hours,height) %}
-      {%- for hour in range(hours) %}
-        {%- if height == 0 %}
-          ["pixel", {{x+hour}}, 7, "{{interpolate(color_dict, forecast[hour][forecast_temp_field]) }}"]
-        {%- else %}
-          ["line", {{x+hour}}, 7, {{x+hour}}, {{7 - height}}, "{{interpolate(color_dict, forecast[hour][forecast_temp_field]) }}"]
-        {%- endif %}
-        {%- if hour+1 != hours %},{%endif%}
-      {%- endfor %}
-    {%- endmacro %}
-    {# Define the color mapping dictionary #}
-    {
-    "draw": [
-      {{draw_forecast_lines(8,hours_to_show,0)}},
-      ["text", {{text_x}}, 1, "{{temp_text}}", "{{interpolate(color_dict, current_temp | float)}}"]
-      {% if show_moon %}, {{moon_data}} {% endif %}
-    ],
-    "icon": "{{icon}}",
-    "durationMs": {{message_duration * 1000}},
-    "iconMode": "push",
-    "lifetimeMs": 120000
-    }
-
 trigger:
   - platform: time_pattern
     minutes: /2
@@ -969,6 +886,99 @@ trigger:
 condition: []
 
 action:
+  # CHANGED: state_attr(forecast_var,'forecast') is a deprecated attribute many
+  # weather integrations no longer populate. This calls the current
+  # weather.get_forecasts service instead and stores the result before the
+  # payload (which needs "forecast") is built.
+  - action: weather.get_forecasts
+    target:
+      entity_id: "{{ forecast_var }}"
+    data:
+      type: hourly
+    response_variable: forecast_response
+  - variables:
+      forecast: "{{ forecast_response[forecast_var].forecast }}"
+      payload: >
+        {%- macro interpolate(dictionary, x) -%}
+          {%- set sorted_keys = dictionary|dictsort -%}
+          {%- set above = sorted_keys|selectattr('0', 'gt', x)|map(attribute='0')|list|first -%}
+          {%- set below = sorted_keys|selectattr('0', 'lt', x)|map(attribute='0')|list|last -%}
+
+          {#- Key matches x exactly -#}
+          {%- if above is defined and dictionary[above] == x -%}
+            {%- set value = dictionary[above] -%}
+            {{ value }}
+          {%- elif below is defined and dictionary[below] == x -%}
+            {%- set value = dictionary[below] -%}
+            {{ value }}
+          {#- Interpolation between two values -#}
+          {%- elif below is defined and above is defined -%}
+            {%- set lower_value = dictionary[below] -%}
+            {%- set upper_value = dictionary[above] -%}
+            {%- set lower_rgb = lower_value[1:] -%}
+            {%- set upper_rgb = upper_value[1:] -%}
+
+            {%- set lower_r = lower_rgb[0:2]|int(base=16) -%}
+            {%- set lower_g = lower_rgb[2:4]|int(base=16) -%}
+            {%- set lower_b = lower_rgb[4:6]|int(base=16) -%}
+
+            {%- set upper_r = upper_rgb[0:2]|int(base=16) -%}
+            {%- set upper_g = upper_rgb[2:4]|int(base=16) -%}
+            {%- set upper_b = upper_rgb[4:6]|int(base=16) -%}
+
+            {%- set interpolation_factor = (x - below) / (above - below) -%}
+            {%- set interpolated_r = ((1 - interpolation_factor) * lower_r + interpolation_factor * upper_r)|int -%}
+            {%- set interpolated_g = ((1 - interpolation_factor) * lower_g + interpolation_factor * upper_g)|int -%}
+            {%- set interpolated_b = ((1 - interpolation_factor) * lower_b + interpolation_factor * upper_b)|int -%}
+
+            {%- set interpolated_hex = '#' ~ '%02X' % interpolated_r ~ '%02X' % interpolated_g ~ '%02X' % interpolated_b -%}
+            {{ interpolated_hex }}
+          {#- Only below key available -#}
+          {%- elif below is defined -%}
+            {%- set value = dictionary[below] -%}
+            {{ value }}
+          {#- Only above key available -#}
+          {%- elif above is defined -%}
+            {%- set value = dictionary[above] -%}
+            {{ value }}
+          {#- No matching keys available -#}
+          {%- else -%}
+            No matching key found.
+          {%- endif -%}
+        {%- endmacro -%}
+
+        {#- Define macro to get length of the forecast}
+        {%- macro str_len(str) %}
+        {%- if '.' in str %}
+        {%- set char_count = (str | length) -1 %}{{char_count * 3 + 1 + char_count}}
+        {%- else %}
+        {%- set char_count = (str | length) %}{{char_count * 3 + (char_count - 1)}}
+        {%- endif %}
+        {%- endmacro %}
+
+        {#- Define a macro to draw out the forecast lines#}
+        {%- macro draw_forecast_lines(x,hours,height) %}
+          {%- for hour in range(hours) %}
+            {%- if height == 0 %}
+              ["pixel", {{x+hour}}, 7, "{{interpolate(color_dict, forecast[hour][forecast_temp_field]) }}"]
+            {%- else %}
+              ["line", {{x+hour}}, 7, {{x+hour}}, {{7 - height}}, "{{interpolate(color_dict, forecast[hour][forecast_temp_field]) }}"]
+            {%- endif %}
+            {%- if hour+1 != hours %},{%endif%}
+          {%- endfor %}
+        {%- endmacro %}
+        {
+        "draw": [
+          {{draw_forecast_lines(8,hours_to_show,0)}},
+          ["text", {{text_x}}, 1, "{{temp_text}}", "{{interpolate(color_dict, current_temp | float)}}"]
+          {% if show_moon %}, {{moon_data}} {% endif %}
+        ],
+        "icon": "{{icon}}",
+        "durationMs": {{message_duration * 1000}},
+        "iconMode": "push",
+        "lifetimeMs": 120000
+        }
+
   - repeat:
       for_each: "{{ devices_topics }}"
       sequence:
